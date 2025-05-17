@@ -8,16 +8,16 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import List, Optional
 
 import discord
-from discord import Message
+from discord import Message, TextChannel
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from utils.telecom import text
+from utils.telecom import text, water
 from utils.data import p2verification
-from utils.utils import clean_logs, load_activity, save_activity, code_logger, discord_logger, pokemon_logger, env, prefix
+from utils.utils import clean_logs, load_activity, save_activity, code_logger, discord_logger, pokemon_logger, tree_logger, env, prefix
 
 
 config_path = Path("data/config/config.json")
@@ -28,17 +28,20 @@ with open(config_path) as f:
     config = json.load(f)
 
 bot_version = config['main']['version']
-watch_id = int(config['ids']['watch id'])
-mention_id = int(config['ids']['mention id'])
 catching_check = config['main']['catching?']
 p2assistant_check = config['main']['p2assistant?']
 texting_check = config['main']['texts?']
 helpers_check = config['main']['helpers?']
-tree_channel_id = int(config['ids']['tree'])
+user_id = int(config['main']['user id'])
+watch_id = int(config['ids']['watch id'])
+mention_id = int(config['ids']['mention id'])
+tree_message_id = int(config['ids']['tree'])
+tree_channel_id = int(config['ids']['tree channel'])
 pokemon_check = config['text']['pokemon']
 helpers = config['paths']['helpers']
 restart = config['paths']['restart']
 pokemon = config['paths']['pokemon']
+session = config['paths']['session']
 venv = config['paths']['venv']
 Lego = commands.Bot(command_prefix=prefix, self_bot=True)
 
@@ -52,6 +55,7 @@ current_pokemon = None
 pokemon_data = {}
 catching = True
 already_triggered = False
+tree_monitor_task = None
 
 
 with open(pokemon, "r", encoding='utf-8') as f:
@@ -114,6 +118,55 @@ def get_closest_pokemon(hint: str, pokemon_list: List[str]) -> Optional[str]:
     except Exception as e:
         code_logger.error(f"An exception occurred while trying to get closest pokemon name {e}", exc_info=True)
         return None
+
+
+async def start_tree_monitor():
+    global tree_monitor_task
+    if tree_monitor_task is None or tree_monitor_task.done():
+        tree_monitor_task = asyncio.create_task(tree_monitor_loop())
+        tree_logger.info("Tree monitor loop task created")
+    else:
+        tree_logger.info("Tree monitor loop already running")
+
+
+async def tree_monitor_loop():
+    tree_logger.info("Tree monitor loop started")
+    await Lego.wait_until_ready()
+    while True:
+        try:
+            channel_raw = Lego.get_channel(tree_channel_id)
+            if not isinstance(channel_raw, TextChannel):
+                code_logger.error("Channel not found or wrong type, exiting loop", exc_info=True)
+                return
+            channel = channel_raw
+
+            message = await channel.fetch_message(tree_message_id)
+            embed_content = message.embeds[0].description or ""
+
+            if "Ready to be watered!" in embed_content:
+                last_watered_match = re.search(r"Last watered by: <@!?(\d+)>", embed_content)
+                last_watered_user_id = int(last_watered_match.group(1)) if last_watered_match else None
+                bot_user_id = Lego.user.id if Lego.user else None
+
+                if last_watered_user_id != bot_user_id:
+                    water()
+                    tree_logger.info(f"Tree watered, sleeping for 300s at {time.strftime('%X')}.")
+                    await asyncio.sleep(120)
+                    tree_logger.info(f"Woke up at {time.strftime('%X')}")
+                    continue
+                else:
+                    tree_logger.info(f"Tree already watered, Sleeping for 300s at {time.strftime('%X')}.")
+                    await asyncio.sleep(120)
+                    tree_logger.info(f"Woke up at {time.strftime('%X')}")
+                    continue
+            else:
+                tree_logger.info("Tree not ready yet.")
+
+        except Exception as e:
+            code_logger.error(f"Error in tree monitor loop: {e}", exc_info=True)
+
+        tree_logger.info(f"Sleeping for 30s at {time.strftime('%X')}")
+        await asyncio.sleep(30)
 
 
 @Lego.event
@@ -252,28 +305,6 @@ async def on_message(message: discord.Message):
                 except KeyError as e:
                     code_logger.error(f'KeyError for {e} in message: {message.content}', exc_info=True)
 
-    if message.channel.id == tree_channel_id:
-        if message.embeds and message.components:
-            for embed in message.embeds:
-                embed_content = embed.description or ""
-
-                if "Last watered by:" in embed_content and "Ready to be watered!" in embed_content:
-                    discord_logger.info("Tree is ready to be watered!")
-                    last_watered_match = re.search(r"Last watered by: @(\w+)", embed_content)
-
-                    if last_watered_match:
-                        last_watered_by = last_watered_match.group(1)
-
-                        if (last_watered_by.lower() != (Lego.user.name.lower() if Lego.user else "") and "Ready to be watered!" in embed_content):
-                            for row in message.components:
-                                component = Any
-                                for component in row.children:  # type: ignore[reportUnknownMemberType]
-                                    if component.type == discord.ComponentType.button:  # type: ignore[reportUnknownMemberType]
-                                        if "💧" in str(component.emoji) or component == row.children[0]:  # type: ignore[reportUnknownMemberType]
-                                            await component.click()  # type: ignore[reportUnknownMemberType]
-                                            discord_logger.info(f"Watered tree at {message.created_at}")
-                                            return
-
     if Lego.user in message.mentions:
         discord_logger.info(f"Message from {message.author}: {message.content}")
 
@@ -309,6 +340,18 @@ async def on_ready():
 
     except Exception as e:
         code_logger.error(f"An error occurred during bot startup: {e}", exc_info=True)
+
+    try:
+        session_id = Lego.ws.session_id
+        with open(session, "w") as f:
+            f.write(str(session_id))
+    except Exception as e:
+        code_logger.error(f"An error has occured while trying to update {session}, {e}", exc_info=True)
+
+    try:
+        await start_tree_monitor()
+    except Exception as e:
+        code_logger.error(f"There was an error trying to monitor the tree, {e}", exc_info=True)
 
 
 if __name__ == "__main__":

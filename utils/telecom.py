@@ -3,9 +3,12 @@ import json
 import smtplib
 import os
 import time
+import requests
+import random
 from email.message import EmailMessage
 from typing import Any, Dict
 
+from dotenv import load_dotenv
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
@@ -14,14 +17,68 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.chrome.webdriver import WebDriver as ChromeDriver
 
-from utils.utils import code_logger
+from utils.utils import code_logger, env
 
 config_path = Path("data/config/config.json")
 config_path.parent.mkdir(parents=True, exist_ok=True)
 
 
+load_dotenv(dotenv_path=Path(env))
+token: str = os.getenv('discord_token') or ''
+
+
 with open(config_path) as f:
     config = json.load(f)
+
+
+guild_id = int(config['ids']['guild'])
+tree_channel_id = int(config['ids']['tree channel'])
+tree_message_id = int(config['ids']['tree'])
+tree_id = int(config['ids']['tree id'])
+telecom_path = str(config['paths']['telecom'])
+
+
+with open(telecom_path) as f:
+    data = json.load(f)
+
+cookies = data['cookies']
+user_agent = data['headers']['User-Agent']
+X_Super_Properties = data['headers']['X-Super-Properties']
+
+headers: dict[str, str] = {
+    'Authorization': token,
+    'Content-Type': 'application/json',
+    'User-Agent': user_agent,
+    'X-Super-Properties': X_Super_Properties,
+    'Referer': f'https://discord.com/channels/{guild_id}/{tree_channel_id}',
+}
+
+
+payload: dict[str, object] = {
+    "type": 3,
+    "nonce": str(int(time.time() * 1000 + random.randint(100, 999))),
+    "guild_id": guild_id,
+    "channel_id": tree_channel_id,
+    "message_id": tree_message_id,
+    "application_id": tree_id,
+    "session_id": "YOUR_SESSION_ID",
+    "data": {
+        "component_type": 2,
+        "custom_id": "grow"
+    }
+}
+
+
+def water():
+    r = requests.post(
+        "https://discord.com/api/v9/interactions",
+        headers=headers,
+        cookies=cookies,
+        json=payload
+    )
+    if not r.ok:
+        code_logger.error(f"Error: {r.status_code} - {r.text}", exc_info=True)
+
 
 texting_check = config['main']['texts?']
 if texting_check:
@@ -33,8 +90,8 @@ if texting_check:
 
 def p2verification():
     options = uc.ChromeOptions()
-    options.add_argument("--no-first-run --no-service-autorun --password-store=basic")  # type: ignore[reportUnknownMemberType]
-    options.add_argument("--disable-blink-features=AutomationControlled")  # type: ignore[reportUnknownMemberType]
+    options.add_argument("--no-first-run --no-service-autorun --password-store=basic")  # type: ignore
+    options.add_argument("--disable-blink-features=AutomationControlled")  # type: ignore
 
     try:
         driver: ChromeDriver = uc.Chrome(options=options)
@@ -52,7 +109,7 @@ def p2verification():
     try:
         WebDriverWait(driver, 60).until(recaptcha_is_ready)
 
-        token = str(driver.execute_script(  # type: ignore[reportUnknownMemberType]
+        token = str(driver.execute_script(  # type: ignore
             "return document.getElementById('g-recaptcha-response').value"
         ))
 
@@ -68,9 +125,9 @@ def p2verification():
 
 def lookup_carrier_info(phone_number: str) -> Dict[str, Any]:
     options: uc.ChromeOptions = uc.ChromeOptions()
-    options.add_argument("--headless")  # type: ignore[reportUnknownMemberType]
-    options.add_argument("--no-sandbox")  # type: ignore[reportUnknownMemberType]
-    options.add_argument("--disable-dev-shm-usage")  # type: ignore[reportUnknownMemberType]
+    options.add_argument("--headless")  # type: ignore
+    options.add_argument("--no-sandbox")  # type: ignore
+    options.add_argument("--disable-dev-shm-usage")  # type: ignore
 
     driver = uc.Chrome(options=options)
     wait = WebDriverWait(driver, 10)
@@ -120,7 +177,7 @@ def lookup_carrier_info(phone_number: str) -> Dict[str, Any]:
 
 
 def recaptcha_is_ready(driver: ChromeDriver) -> bool:
-    result: bool = bool(driver.execute_script(  # type: ignore[reportUnknownMemberType]
+    result: bool = bool(driver.execute_script(  # type: ignore
         "return document.getElementById('g-recaptcha-response')?.value?.length > 0"
     ))
     return result

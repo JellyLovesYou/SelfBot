@@ -1,7 +1,7 @@
 {
     "main":{
-        "prefix": "?",
-        "user id": "",
+        "prefix": "", // prefix
+        "user id": "", // your user id
         "version": "1.0.1",
         "catching?": true,
         "p2assistant?": false,
@@ -18,13 +18,19 @@
         "code logs": "data/logs/code.log",
         "discord logs": "data/logs/discord.log",
         "pokemon logs": "data/logs/pokemon.log",
+        "tree logs": "data/logs/tree.log",
         "helpers": "helpers.py",
         "restart": "data/runtime/restart.signal",
-        "pokemon": "data/text/pokemon.txt"
+        "pokemon": "data/text/pokemon.txt",
+        "session": "data/text/session.txt",
+        "telecom": "data/config/telecom.json"
     },
     "ids":{
         "watch id": "854233015475109888",
         "mention id": "716390085896962058",
-        "tree": "" // channel id for Grow a Tree#5130
+        "tree id": "972637072991068220",
+        "tree": "", // message id for Grow a Tree#5130
+        "tree channel": "", // channel id for Grow a Tree#5130
+        "guild": "" // guild id for Grow a Tree#5130
     }
 }

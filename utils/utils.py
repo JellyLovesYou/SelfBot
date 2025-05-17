@@ -36,14 +36,16 @@ def setup_logger(name: str, log_file: Path, level: int = logging.INFO) -> loggin
 
 
 log_paths = {
-    "code": config["paths"]["code logs"],
-    "discord": config["paths"]["discord logs"],
-    "pokemon": config["paths"]["pokemon logs"]
+    'code': config['paths']['code logs'],
+    'discord': config['paths']['discord logs'],
+    'pokemon': config['paths']['pokemon logs'],
+    'tree': config['paths']['tree logs']
 }
 
-code_logger = setup_logger("code", Path(log_paths["code"]))
-discord_logger = setup_logger("discord", Path(log_paths["discord"]))
-pokemon_logger = setup_logger("pokemon", Path(log_paths["pokemon"]))
+code_logger = setup_logger('code', Path(log_paths['code']))
+discord_logger = setup_logger('discord', Path(log_paths['discord']))
+pokemon_logger = setup_logger('pokemon', Path(log_paths['pokemon']))
+tree_logger = setup_logger("tree", Path(log_paths['tree']))
 
 
 def clean_logs():

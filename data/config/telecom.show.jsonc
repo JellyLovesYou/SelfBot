@@ -1,0 +1,18 @@
+{
+    "headers": {
+        "User-Agent": "",
+        "X-Super-Properties": ""
+    },
+
+    "cookies": {
+        "__dcfduid": "",
+        "__sdcfduid": "",
+        "__cfruid": "",
+        "_cfuvid": "",
+        "locale": "",
+        "cf_clearance": ""
+    }
+}
+
+// I recomend using your actual values, and if you have more/less cookies adjust so
+// Both headers are required, cookies just cannot be empty

@@ -106,9 +106,16 @@
 
 ## Info
 
-automatically catches pokemon from poketwo if enabled in config, stopping if verification is required and optionally sending you a text letting you know.
-logs user mentions
-automatically waters your tree if you have Grow a Tree#5130
+- **pokemon**
+automatically catches pokemon from `Pokétwo#8236` if enabled in config, stopping if verification is required and optionally sending you a text letting you know.
+
+- **logging**
+logs user mentions, and pokemon catching activity
+
+- **grow a tree**
+automatically waters your tree when possible if you have `Grow a Tree#5130`
+
+- **multiple accounts**
 optional helper account config that send with the user, (up to 5, easy change though)
 
 ## Requirements

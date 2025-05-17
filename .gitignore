@@ -24,6 +24,7 @@ bin/
 
 *.log
 activity.json
+telecom.json
 config.json
 tokens.txt
 .flake8
