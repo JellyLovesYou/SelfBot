@@ -20,7 +20,7 @@
         "pokemon logs": "data/logs/pokemon.log",
         "helpers": "helpers.py",
         "restart": "data/runtime/restart.signal",
-        "pokemon": "data/text/pokemon.json"
+        "pokemon": "data/text/pokemon.txt"
     },
     "ids":{
         "watch id": "854233015475109888",
