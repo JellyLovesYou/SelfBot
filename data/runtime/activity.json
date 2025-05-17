@@ -1,0 +1,42 @@
+{
+  "sending": {
+    "active": true,
+    "text": null,
+    "length": 10,
+    "channel id": 1243262198621671526
+  },
+  "reactions": {
+    "1": {
+      "active": false,
+      "emojis": [
+        "<:Lego_Battle_Droid:1211956901722460190>"
+      ],
+      "target_user_ids": null,
+      "guild_id": 886999069560545352
+    },
+    "2": {
+      "active": true,
+      "emojis": [
+        "<:stfu:888651840781156392>",
+        "<:key:888639594181054484>",
+        "\ud83e\uddd0"
+      ],
+      "target_user_ids": [
+        1329326354734518272
+      ],
+      "guild_id": null
+    },
+    "3": {
+      "active": true,
+      "reaction": "\ud83d\udc74",
+      "target_user_ids": [
+        769051532880510986
+      ],
+      "guild_id": null
+    }
+  },
+  "reaction_remove": {
+    "active": false,
+    "channel_id": 1245485783578710047
+  }
+}
