@@ -1,0 +1,30 @@
+{
+    "main":{
+        "prefix": "?",
+        "user id": "",
+        "version": "1.0.1",
+        "catching?": true,
+        "p2assistant?": false,
+        "texts?": true,
+        "helpers?": true
+    },
+    "text": {
+        "pokemon": true
+    },
+    "paths":{
+        "env": "", // absolute path to .env
+        "venv": "", // absolute path to python.exe in venv 
+        "activity": "data/runtime/activity.json",
+        "code logs": "data/logs/code.log",
+        "discord logs": "data/logs/discord.log",
+        "pokemon logs": "data/logs/pokemon.log",
+        "helpers": "helpers.py",
+        "restart": "data/runtime/restart.signal",
+        "pokemon": "data/text/pokemon.json"
+    },
+    "ids":{
+        "watch id": "854233015475109888",
+        "mention id": "716390085896962058",
+        "tree": "" // channel id for Grow a Tree#5130
+    }
+}
