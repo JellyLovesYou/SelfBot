@@ -96,7 +96,7 @@ class Reactions(commands.Cog):
     @commands.command(
         name='reactstop',
         usage='?rs <id>',
-        help='Stop auto-reacting for a specific reaction ID (e.g., ?stop 1).',
+        help='Stop auto-reacting for a specific reaction ID.',
         aliases=['rs']
     )
     async def reactstop(self, ctx: commands.Context[Any], reaction_id: Optional[str] = None):
@@ -106,7 +106,7 @@ class Reactions(commands.Cog):
 
         if not reaction_id:
             try:
-                await ctx.send("You must specify a reaction ID to stop (e.g., `?stop 1`).", delete_after=5)
+                await ctx.send("You must specify a reaction ID to stop.", delete_after=5)
                 return
             except Exception as e:
                 code_logger.error(f"An error has occurred trying to respond {e}", exc_info=True)
