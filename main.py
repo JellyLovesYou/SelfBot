@@ -55,7 +55,7 @@ already_triggered = False
 
 
 with open(pokemon, "r", encoding='utf-8') as f:
-    pokemon_list = json.load(f)
+    pokemon_list = [line.strip() for line in f if line.strip()]
 
 
 if pathlib.Path(restart).exists():
@@ -110,6 +110,7 @@ def get_closest_pokemon(hint: str, pokemon_list: List[str]) -> Optional[str]:
                 if re.sub(r'[^a-z]', '', p.lower()) == best_match[0]:
                     return p
         return None
+
     except Exception as e:
         code_logger.error(f"An exception occurred while trying to get closest pokemon name {e}", exc_info=True)
         return None

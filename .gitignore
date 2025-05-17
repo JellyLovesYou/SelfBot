@@ -23,7 +23,7 @@ bin/
 *.egg-info/
 
 *.log
-
+activity.json
 config.json
 tokens.txt
 .flake8
