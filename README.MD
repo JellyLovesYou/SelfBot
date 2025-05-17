@@ -20,7 +20,7 @@
 
 Clone this repository to your local machine using:
 bash
-git clone <repository_url>
+git clone <https://github.com/JellyLovesYou/SelfBot/tree/main>
 Alternatively, download the ZIP file and extract it.
 
 ## 3. Install Required Packages
@@ -35,39 +35,9 @@ pip install -r requirements.txt
 
 ## Configuration
 
-Open the `config.json` file in a text editor.
-Replace the placeholders with your actual values
-
-```json
-{
-    "main":{
-        "prefix": "?",
-        "user id": "",
-        "version": "1.0.0",
-        "catching?": true, // do you want to catch pokemon
-        "p2assistant?": false // mostly useless now
-    },
-    "text": {
-        "pokemon": true // do you want to get texts about p2 verification?
-    },
-    "paths":{
-        "env": "C:\\Users\\Lego\\.env", // use an env 
-        "venv": "C:\\Users\\Lego\\projects\\SelfBot\\v2\\venv\\Scripts\\python.exe", // use a venv
-        "activity": "data/runtime/activity.json",
-        "code logs": "data/logs/code.log",
-        "discord logs": "data/logs/discord.log",
-        "pokemon logs": "data/logs/pokemon.log",
-        "helpers": "helpers.py",
-        "restart": "data/runtime/restart.signal",
-        "pokemon": "data/text/pokemon.json"
-    },
-    "ids":{
-        "watch id": "854233015475109888",
-        "mention id": "716390085896962058",
-        "tree": "1177314426299363409" // change channel id for 'Grow a Tree#5130'
-    }
-}
-```
+Open `data/config/config.show.jsonc` file in a text editor.
+Replace the placeholders with your actual values, remove comments, change to config.json
+You can also just copy the contents into `data/config/config.json` after creating it.
 
 ## Running the Selfbot
 
