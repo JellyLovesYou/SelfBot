@@ -6,7 +6,8 @@
         "catching?": true,
         "p2assistant?": false,
         "texts?": true,
-        "helpers?": true
+        "helpers?": true,
+        "solving?": true
     },
     "text": {
         "pokemon": true

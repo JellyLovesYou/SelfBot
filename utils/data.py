@@ -162,4 +162,5 @@ addresses = [
 ]
 
 
-p2verification = 'PokeTwo is asking for verification, please do the captcha here https://verify.poketwo.net/captcha/944666961743343639'
+p2verification_message = 'PokeTwo is asking for verification, please do the captcha here https://verify.poketwo.net/captcha/944666961743343639'
+verification_link = 'https://verify.poketwo.net/captcha/944666961743343639'

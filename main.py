@@ -7,6 +7,7 @@ import pathlib
 import re
 import subprocess
 import time
+import atexit
 from pathlib import Path
 from typing import List, Optional
 
@@ -15,8 +16,8 @@ from discord import Message, TextChannel
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from utils.telecom import text, water
-from utils.data import p2verification
+from utils.telecom import text, water, p2verification
+from utils.data import p2verification_message
 from utils.utils import clean_logs, load_activity, save_activity, code_logger, discord_logger, pokemon_logger, tree_logger, env, prefix
 
 
@@ -28,16 +29,16 @@ with open(config_path) as f:
     config = json.load(f)
 
 bot_version = config['main']['version']
-catching_check = config['main']['catching?']
-p2assistant_check = config['main']['p2assistant?']
-texting_check = config['main']['texts?']
-helpers_check = config['main']['helpers?']
+catching_check = bool(config['main']['catching?'])
+p2assistant_check = bool(config['main']['p2assistant?'])
+helpers_check = bool(config['main']['helpers?'])
+solving_check = bool(config['main']['solving?'])
 user_id = int(config['main']['user id'])
 watch_id = int(config['ids']['watch id'])
 mention_id = int(config['ids']['mention id'])
 tree_message_id = int(config['ids']['tree'])
 tree_channel_id = int(config['ids']['tree channel'])
-pokemon_check = config['text']['pokemon']
+pokemon_text_check = config['text']['pokemon']
 helpers = config['paths']['helpers']
 restart = config['paths']['restart']
 pokemon = config['paths']['pokemon']
@@ -56,6 +57,7 @@ pokemon_data = {}
 catching = True
 already_triggered = False
 tree_monitor_task = None
+helper_proc = None
 
 
 with open(pokemon, "r", encoding='utf-8') as f:
@@ -76,12 +78,13 @@ def stop_sending():
 
 
 def get_help():
+    global helper_proc
     if not os.path.exists(venv):
         code_logger.error(f"Error: The virtual environment Python executable does not exist at {venv}", exc_info=True)
     elif not os.path.exists(helpers):
         code_logger.error(f"Error: The helpers.py file does not exist at {helpers}", exc_info=True)
     else:
-        subprocess.Popen([venv, helpers])
+        helper_proc = subprocess.Popen([venv, helpers])
 
 
 def is_structure_match(hint: str, candidate: str) -> bool:
@@ -226,18 +229,26 @@ async def on_message(message: discord.Message):
 
             if "Whoa there. Please tell us you're human!" in message.content:
                 try:
-                    catching = False
-                    pokemon_logger.warning(f'{p2verification}')
+                    pokemon_logger.info(f"catching_check type: {type(catching_check)}, value: {repr(catching_check)}")
+                    pokemon_logger.info(f'{p2verification_message}')
+                    assert isinstance(catching_check, bool), f"Expected boolean, got {type(catching_check)}: {repr(catching_check)}"
 
-                    if pokemon_check and not already_triggered:
+                    if not already_triggered:
+                        pokemon_logger.info(f"{catching_check} and not {already_triggered} check success.")
                         try:
-                            if texting_check:
-                                text(p2verification)
-                            discord_logger.info("A text was sent")
-                            stop_sending()
-                            already_triggered = True
+                            if solving_check:
+                                pokemon_logger.info("This part was gotten too aswell.")
+                                p2verification()
+
+                            elif pokemon_text_check:
+                                await text(p2verification_message)
+                                pokemon_logger.info("A text was sent")
+                                stop_sending()
+                                catching = False
+                                already_triggered = True
+
                         except Exception as e:
-                            discord_logger.error(f'Failed to send verification text: {e}', exc_info=True)
+                            code_logger.error(f'Failed to send verification text: {e}', exc_info=True)
 
                 except Exception as e:
                     code_logger.error(f'Unhandled error during CAPTCHA flow: {e}', exc_info=True)
@@ -354,6 +365,12 @@ async def on_ready():
         code_logger.error(f"There was an error trying to monitor the tree, {e}", exc_info=True)
 
 
+@atexit.register
+def cleanup():
+    if helper_proc and helper_proc.poll() is None:
+        helper_proc.terminate()
+
+
 if __name__ == "__main__":
     clean_logs()
     if helpers_check:
@@ -361,4 +378,8 @@ if __name__ == "__main__":
     ctypes.windll.kernel32.SetThreadExecutionState(0x80000002)
     if token is None:
         raise ValueError("TOKEN environment variable is missing.")
+#    try:
+#        p2verification()
+#    except Exception as e:
+#        code_logger.error(f"{e}")
     Lego.run(token)

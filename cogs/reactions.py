@@ -1,6 +1,6 @@
 import asyncio
 from pathlib import Path
-from typing import Any, Optional, Iterable, List, TypedDict, Dict
+from typing import Any, Optional, List, TypedDict, Dict
 
 import discord
 from discord.ext import commands
@@ -26,7 +26,7 @@ class Reactions(commands.Cog):
         help='Start auto-reacting with multiple emojis, optionally filtered by users.',
         aliases=['r']
     )
-    async def react(self, ctx: commands.Context[Any], *args: Iterable[str]) -> None:
+    async def react(self, ctx: commands.Context[Any], *args: str) -> None:
         if ctx.author != self.bot.user:
             discord_logger.info(f"Unauthorized user {ctx.author.id} tried to use react.")
             return
@@ -121,15 +121,18 @@ class Reactions(commands.Cog):
             except Exception as e:
                 code_logger.error(f"An error has occurred trying to respond {e}", exc_info=True)
 
-        reactions[reaction_id]["active"] = False
-        activity["reactions"] = reactions
-        save_activity(activity)
+        try:
+            reactions[reaction_id]["active"] = not reactions[reaction_id]["active"]
+            activity["reactions"] = reactions
+            save_activity(activity)
+        except Exception as e:
+            code_logger.error(f"An error occurred while toggling reaction {reaction_id}, {e}")
 
         channel_name = getattr(ctx.channel, "name", None)
         if isinstance(channel_name, str):
-            discord_logger.info(f"Reaction ID {reaction_id} disabled in #{channel_name}")
+            discord_logger.info(f"Reaction ID {reaction_id} set to {reactions[reaction_id]['active']} in #{channel_name}")
         else:
-            discord_logger.info(f"Reaction ID {reaction_id} disabled in an unknown channel")
+            discord_logger.info(f"Reaction ID {reaction_id} set to {reactions[reaction_id]['active']} in an unknown channel")
 
         await ctx.message.delete()
 
@@ -365,7 +368,7 @@ class Reactions(commands.Cog):
             if target_users is not None and message.author.id not in target_users:
                 continue
 
-            emojis = reaction_data.get("emojis")
+            emojis = reaction_data.get("reaction")
             if not emojis:
                 continue
 
@@ -387,10 +390,12 @@ class Reactions(commands.Cog):
                     ch_name = getattr(ch, 'name', None)
                     if isinstance(ch_name, str):
                         name = f"#{ch_name}"
+                        if e.status == 400 and e.code == 10014:
+                            discord_logger.error(f"Failed to react to {message.id} in {name} with {emoji}: {e}", exc_info=True)
                     else:
                         recipient = getattr(ch, 'recipient', ch)
                         name = f"DM:{getattr(recipient, 'id', 'unknown')}"
-                    discord_logger.warning(f"Failed to react in {name} with {emoji}: {e}")
+                    discord_logger.error(f"Failed to react in {name} with {emoji}: {e}", exc_info=True)
 
 
 async def setup(bot: commands.Bot):

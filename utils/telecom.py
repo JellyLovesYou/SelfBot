@@ -6,46 +6,51 @@ import time
 import requests
 import random
 from email.message import EmailMessage
-from typing import Any, Dict
+from typing import Any, Dict, Optional, cast
 
+from twocaptcha import TwoCaptcha  # type: ignore[reportMissingTypeStubs]
 from dotenv import load_dotenv
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 import undetected_chromedriver as uc  # type: ignore[reportMissingTypeStubs]
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.webdriver import WebDriver as ChromeDriver
 
-from utils.utils import code_logger, env
-
-config_path = Path("data/config/config.json")
-config_path.parent.mkdir(parents=True, exist_ok=True)
-
+from utils.utils import code_logger, pokemon_logger, env
+from utils.decoder import extract_cookies
+from utils.data import verification_link
 
 load_dotenv(dotenv_path=Path(env))
 token: str = os.getenv('discord_token') or ''
-
+TwoCaptcha_token: str = os.getenv('twocaptcha') or ''
+solver = TwoCaptcha(TwoCaptcha_token)
+config_path = Path("data/config/config.json")
+config_path.parent.mkdir(parents=True, exist_ok=True)
 
 with open(config_path) as f:
     config = json.load(f)
-
 
 guild_id = int(config['ids']['guild'])
 tree_channel_id = int(config['ids']['tree channel'])
 tree_message_id = int(config['ids']['tree'])
 tree_id = int(config['ids']['tree id'])
 telecom_path = str(config['paths']['telecom'])
-
+session_path = str(config['paths']['session'])
 
 with open(telecom_path) as f:
     data = json.load(f)
 
-cookies = data['cookies']
-user_agent = data['headers']['User-Agent']
-X_Super_Properties = data['headers']['X-Super-Properties']
+browser = str(data['main']['browser'])
+tree_cookies = data['cookies']['tree']
+user_agent = data['headers']['base']['User-Agent']
+X_Super_Properties = data['headers']['tree']['X-Super-Properties']
 
-headers: dict[str, str] = {
+with open(session_path, 'r') as f:
+    session_id = f.read().strip()
+
+tree_headers: dict[str, str] = {
     'Authorization': token,
     'Content-Type': 'application/json',
     'User-Agent': user_agent,
@@ -61,7 +66,7 @@ payload: dict[str, object] = {
     "channel_id": tree_channel_id,
     "message_id": tree_message_id,
     "application_id": tree_id,
-    "session_id": "YOUR_SESSION_ID",
+    "session_id": session_id,
     "data": {
         "component_type": 2,
         "custom_id": "grow"
@@ -72,8 +77,8 @@ payload: dict[str, object] = {
 def water():
     r = requests.post(
         "https://discord.com/api/v9/interactions",
-        headers=headers,
-        cookies=cookies,
+        headers=tree_headers,
+        cookies=tree_cookies,
         json=payload
     )
     if not r.ok:
@@ -88,39 +93,74 @@ if texting_check:
     carrier = os.getenv('carrier')
 
 
-def p2verification():
+def wait_recaptcha_ready(driver: ChromeDriver, timeout: float):
+    code_logger.info("Waiting for recaptcha")
+    iframe = WebDriverWait(driver, timeout).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "iframe[title='reCAPTCHA']"))
+    )
+    driver.switch_to.frame(iframe)
+
+    WebDriverWait(driver, timeout).until(
+        EC.visibility_of_element_located((By.ID, "recaptcha-anchor"))
+    )
+
+    code_logger.info("Waited for recaptcha, solving.")
+    driver.switch_to.default_content()
+    return True
+
+
+def p2verification() -> Optional[Dict[str, Any]]:
+    pokemon_logger.info("p2 verification function called, attempting to bypass verification.")
+
     options = uc.ChromeOptions()
-    options.add_argument("--no-first-run --no-service-autorun --password-store=basic")  # type: ignore
+    options.add_argument("--no-first-run")  # type: ignore
+    options.add_argument("--no-service-autorun")  # type: ignore
+    options.add_argument("--password-store=basic")  # type: ignore
     options.add_argument("--disable-blink-features=AutomationControlled")  # type: ignore
+    options.add_argument(f"user-agent={user_agent}")  # type: ignore
+
+    driver: Optional[ChromeDriver] = None
 
     try:
-        driver: ChromeDriver = uc.Chrome(options=options)
+        driver = uc.Chrome(options=options)
+        driver.get(verification_link)
+
+        cookies = extract_cookies(verification_link)
+        for cookie in cookies:
+            try:
+                driver.add_cookie(cookie)  # type: ignore
+            except Exception as e:
+                code_logger.error(f"An error has occurred while trying to add a cookie {cookie}, {e}")
+                continue
+
+        driver.refresh()
+
+        sitekey_recaptcha = "6LfgtMoaAAAAAPB_6kwTMPj9HG_XxRLL7n92jYkD"
+
+        try:
+            wait_recaptcha_ready(driver, timeout=60.0)
+
+            result_recaptcha: Dict[str, Any] = solver.recaptcha(sitekey=sitekey_recaptcha, url=verification_link)  # type: ignore
+            if not result_recaptcha:
+                code_logger.error("2Captcha returned None for recaptcha")
+                return None
+
+            return result_recaptcha
+
+        except Exception as e:
+            code_logger.error(f"Solver error: {e}", exc_info=True)
+            return None
+
     except WebDriverException as e:
-        code_logger.error(f'Failed to launch undetected_chromedriver: {e}', exc_info=True)
-        return
-
-    try:
-        driver.get("https://verify.poketwo.net/captcha/944666961743343639")
+        code_logger.error(f"Chrome failed: {e}", exc_info=True)
     except Exception as e:
-        code_logger.error(f'Failed to load CAPTCHA page: {e}', exc_info=True)
-        driver.quit()
-        return
-
-    try:
-        WebDriverWait(driver, 60).until(recaptcha_is_ready)
-
-        token = str(driver.execute_script(  # type: ignore
-            "return document.getElementById('g-recaptcha-response').value"
-        ))
-
-        code_logger.info(f"Extracted reCAPTCHA token: {token}")
-
-    except TimeoutException:
-        code_logger.warning("CAPTCHA token wait timed out after 5 minutes.")
-    except Exception as e:
-        code_logger.error(f'Error extracting CAPTCHA token: {e}', exc_info=True)
+        code_logger.error(f"Unexpected error: {e}", exc_info=True)
     finally:
-        driver.quit()
+        try:
+            if driver:
+                cast(ChromeDriver, driver).quit()
+        except Exception:
+            pass
 
 
 def lookup_carrier_info(phone_number: str) -> Dict[str, Any]:
@@ -176,14 +216,7 @@ def lookup_carrier_info(phone_number: str) -> Dict[str, Any]:
         driver.quit()
 
 
-def recaptcha_is_ready(driver: ChromeDriver) -> bool:
-    result: bool = bool(driver.execute_script(  # type: ignore
-        "return document.getElementById('g-recaptcha-response')?.value?.length > 0"
-    ))
-    return result
-
-
-def text(body: str) -> None:
+async def text(body: str) -> None:
     msg = EmailMessage()
     msg.set_content(body)
     msg['Subject'] = ''
