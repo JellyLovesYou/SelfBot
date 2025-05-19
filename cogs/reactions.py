@@ -1,3 +1,4 @@
+import re
 import asyncio
 from pathlib import Path
 from typing import Any, Optional, List, TypedDict, Dict
@@ -11,6 +12,14 @@ from utils.utils import activity, code_logger, discord_logger, load_activity, sa
 
 activity_file = Path(activity)
 activity_file.parent.mkdir(parents=True, exist_ok=True)
+
+
+def normalize_emoji(s: str) -> str:
+    match = re.match(r"<(a?):(\w+):(\d+)>", s)
+    if match:
+        _, name, emoji_id = match.groups()
+        return f"{name}:{emoji_id}"
+    return s
 
 
 class Reactions(commands.Cog):
@@ -52,6 +61,7 @@ class Reactions(commands.Cog):
                         continue
                 else:
                     emojis.append(s)
+
             except Exception as e:
                 code_logger.error(f"An error has occurred trying to respond {e}", exc_info=True)
 
@@ -368,9 +378,11 @@ class Reactions(commands.Cog):
             if target_users is not None and message.author.id not in target_users:
                 continue
 
-            emojis = reaction_data.get("reaction")
-            if not emojis:
+            emoji_str = reaction_data.get("reaction")
+            if not emoji_str:
                 continue
+
+            emojis = [e.strip() for e in emoji_str.split(",") if e.strip()]
 
             for emoji in emojis:
                 try:
@@ -384,6 +396,12 @@ class Reactions(commands.Cog):
                         recipient = getattr(ch, 'recipient', ch)
                         name = f"DM:{getattr(recipient, 'id', 'unknown')}"
                     discord_logger.debug(f"Reacted to message in {name} with {emoji}")
+
+                except discord.Forbidden as e:
+                    if e.code == 90001:
+                        pass
+                    else:
+                        discord_logger.warning(f"Forbidden error: {e}")
 
                 except discord.HTTPException as e:
                     ch = message.channel

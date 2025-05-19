@@ -378,8 +378,10 @@ if __name__ == "__main__":
     ctypes.windll.kernel32.SetThreadExecutionState(0x80000002)
     if token is None:
         raise ValueError("TOKEN environment variable is missing.")
-#    try:
-#        p2verification()
-#    except Exception as e:
-#        code_logger.error(f"{e}")
+    '''
+    try:
+        p2verification()
+    except Exception as e:
+        code_logger.error(f"{e}")
+    '''
     Lego.run(token)

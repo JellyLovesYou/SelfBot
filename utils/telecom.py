@@ -1,15 +1,18 @@
 from pathlib import Path
 import json
+import psutil
 import smtplib
 import os
 import time
 import requests
 import random
+import subprocess
 from email.message import EmailMessage
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional
 
 from twocaptcha import TwoCaptcha  # type: ignore[reportMissingTypeStubs]
 from dotenv import load_dotenv
+from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
@@ -19,7 +22,6 @@ from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.webdriver import WebDriver as ChromeDriver
 
 from utils.utils import code_logger, pokemon_logger, env
-from utils.decoder import extract_cookies
 from utils.data import verification_link
 
 load_dotenv(dotenv_path=Path(env))
@@ -43,109 +45,70 @@ with open(telecom_path) as f:
     data = json.load(f)
 
 browser = str(data['main']['browser'])
-tree_cookies = data['cookies']['tree']
+browser_path = str(data['main']['path'])
+binary_path = str(data['main']['binary'])
+debug_port = int(data['main']['port'])
 user_agent = data['headers']['base']['User-Agent']
 X_Super_Properties = data['headers']['tree']['X-Super-Properties']
-
-with open(session_path, 'r') as f:
-    session_id = f.read().strip()
-
-tree_headers: dict[str, str] = {
-    'Authorization': token,
-    'Content-Type': 'application/json',
-    'User-Agent': user_agent,
-    'X-Super-Properties': X_Super_Properties,
-    'Referer': f'https://discord.com/channels/{guild_id}/{tree_channel_id}',
-}
+tree_cookies = data['cookies']['tree']
 
 
-payload: dict[str, object] = {
-    "type": 3,
-    "nonce": str(int(time.time() * 1000 + random.randint(100, 999))),
-    "guild_id": guild_id,
-    "channel_id": tree_channel_id,
-    "message_id": tree_message_id,
-    "application_id": tree_id,
-    "session_id": session_id,
-    "data": {
-        "component_type": 2,
-        "custom_id": "grow"
-    }
-}
+def is_browser_debug_running(port: int = debug_port) -> bool:
+    try:
+        for proc in psutil.process_iter(['name', 'cmdline']):
+            if proc.info['name'] and browser in proc.info['name'].lower():
+                cmdline = ' '.join(proc.info['cmdline']).lower()
+                if f'--remote-debugging-port={port}' in cmdline:
+                    return True
+        return False
+
+    except Exception as e:
+        code_logger.error(f"An error has occurred while checking if the browser debug is running, {e}")
+        return False
 
 
-def water():
-    r = requests.post(
-        "https://discord.com/api/v9/interactions",
-        headers=tree_headers,
-        cookies=tree_cookies,
-        json=payload
-    )
-    if not r.ok:
-        code_logger.error(f"Error: {r.status_code} - {r.text}", exc_info=True)
+def launch_browser_with_debug(url: Optional[str] = None):
+    try:
+        cmd = [
+            binary_path,
+            f'--remote-debugging-port={debug_port}',
+            f'--user-data-dir={browser_path}'
+        ]
+        if url:
+            cmd.append(url)
 
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-texting_check = config['main']['texts?']
-if texting_check:
-    email = os.getenv('email')
-    phone = os.getenv('phone')
-    app_password = os.getenv('app_password')
-    carrier = os.getenv('carrier')
-
-
-def wait_recaptcha_ready(driver: ChromeDriver, timeout: float):
-    code_logger.info("Waiting for recaptcha")
-    iframe = WebDriverWait(driver, timeout).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, "iframe[title='reCAPTCHA']"))
-    )
-    driver.switch_to.frame(iframe)
-
-    WebDriverWait(driver, timeout).until(
-        EC.visibility_of_element_located((By.ID, "recaptcha-anchor"))
-    )
-
-    code_logger.info("Waited for recaptcha, solving.")
-    driver.switch_to.default_content()
-    return True
+    except Exception as e:
+        code_logger.error(f"An error has occurred while launching browser with debug, {e}")
 
 
 def p2verification() -> Optional[Dict[str, Any]]:
     pokemon_logger.info("p2 verification function called, attempting to bypass verification.")
+    launch_browser_with_debug(verification_link)
 
-    options = uc.ChromeOptions()
-    options.add_argument("--no-first-run")  # type: ignore
-    options.add_argument("--no-service-autorun")  # type: ignore
-    options.add_argument("--password-store=basic")  # type: ignore
-    options.add_argument("--disable-blink-features=AutomationControlled")  # type: ignore
-    options.add_argument(f"user-agent={user_agent}")  # type: ignore
+    options = webdriver.ChromeOptions()  # type: ignore
+    options.binary_location = binary_path
+    options.debugger_address = f"127.0.0.1:{debug_port}"
 
     driver: Optional[ChromeDriver] = None
 
     try:
-        driver = uc.Chrome(options=options)
-        driver.get(verification_link)
-
-        cookies = extract_cookies(verification_link)
-        for cookie in cookies:
-            try:
-                driver.add_cookie(cookie)  # type: ignore
-            except Exception as e:
-                code_logger.error(f"An error has occurred while trying to add a cookie {cookie}, {e}")
-                continue
-
+        driver = webdriver.Chrome(options=options)
+        code_logger.info(f"Attempting to open {verification_link}")
+        driver.execute_script(f"window.open('{verification_link}', '_blank');")  # type: ignore
+        driver.switch_to.window(driver.window_handles[-1])
         driver.refresh()
 
         sitekey_recaptcha = "6LfgtMoaAAAAAPB_6kwTMPj9HG_XxRLL7n92jYkD"
 
         try:
-            wait_recaptcha_ready(driver, timeout=60.0)
-
             result_recaptcha: Dict[str, Any] = solver.recaptcha(sitekey=sitekey_recaptcha, url=verification_link)  # type: ignore
             if not result_recaptcha:
                 code_logger.error("2Captcha returned None for recaptcha")
                 return None
 
-            return result_recaptcha
+            driver.execute_script("""document.getElementById("g-recaptcha-response").style.display = "block"; document.getElementById("g-recaptcha-response").value = arguments[0];""", result_recaptcha)  # type: ignore
 
         except Exception as e:
             code_logger.error(f"Solver error: {e}", exc_info=True)
@@ -158,9 +121,62 @@ def p2verification() -> Optional[Dict[str, Any]]:
     finally:
         try:
             if driver:
-                cast(ChromeDriver, driver).quit()
+                driver.quit()
         except Exception:
             pass
+
+
+def wait_recaptcha_ready(driver: ChromeDriver, timeout: float):
+    code_logger.info("Waiting for recaptcha")
+    iframe = WebDriverWait(driver, timeout).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, "iframe [title='reCAPTCHA']"))
+    )
+    driver.switch_to.frame(iframe)
+
+    WebDriverWait(driver, timeout).until(
+        EC.visibility_of_element_located((By.ID, "recaptcha-anchor"))
+    )
+
+    code_logger.info("Waited for recaptcha, solving.")
+    driver.switch_to.default_content()
+    return True
+
+
+texting_check = config['main']['texts?']
+if texting_check:
+    email = os.getenv('email')
+    phone = os.getenv('phone')
+    app_password = os.getenv('app_password')
+    carrier = os.getenv('carrier')
+
+
+async def text(body: str) -> None:
+    msg = EmailMessage()
+    msg.set_content(body)
+    msg['Subject'] = ''
+    msg['From'] = email
+
+    actual_carrier = carrier
+    if not actual_carrier:
+        try:
+            lookup = lookup_carrier_info(str(phone))
+            if lookup and lookup.get("sms_gateway"):
+                actual_carrier = lookup["sms_gateway"].split("@")[1]
+            else:
+                code_logger.error("Carrier lookup failed or returned no SMS gateway.", exc_info=True)
+                return
+        except Exception as e:
+            code_logger.error(f"Carrier lookup failed: {e}", exc_info=True)
+            return
+
+    msg['To'] = f"{phone}@{actual_carrier}"
+
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(str(email), str(app_password))
+            smtp.send_message(msg)
+    except Exception as e:
+        code_logger.error(f"An error has occurred trying to send a text. {e}", exc_info=True)
 
 
 def lookup_carrier_info(phone_number: str) -> Dict[str, Any]:
@@ -216,30 +232,39 @@ def lookup_carrier_info(phone_number: str) -> Dict[str, Any]:
         driver.quit()
 
 
-async def text(body: str) -> None:
-    msg = EmailMessage()
-    msg.set_content(body)
-    msg['Subject'] = ''
-    msg['From'] = email
+with open(session_path, 'r') as f:
+    session_id = f.read().strip()
 
-    actual_carrier = carrier
-    if not actual_carrier:
-        try:
-            lookup = lookup_carrier_info(str(phone))
-            if lookup and lookup.get("sms_gateway"):
-                actual_carrier = lookup["sms_gateway"].split("@")[1]
-            else:
-                code_logger.error("Carrier lookup failed or returned no SMS gateway.", exc_info=True)
-                return
-        except Exception as e:
-            code_logger.error(f"Carrier lookup failed: {e}", exc_info=True)
-            return
+tree_headers: dict[str, str] = {
+    'Authorization': token,
+    'Content-Type': 'application/json',
+    'User-Agent': user_agent,
+    'X-Super-Properties': X_Super_Properties,
+    'Referer': f'https://discord.com/channels/{guild_id}/{tree_channel_id}',
+}
 
-    msg['To'] = f"{phone}@{actual_carrier}"
 
-    try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-            smtp.login(str(email), str(app_password))
-            smtp.send_message(msg)
-    except Exception as e:
-        code_logger.error(f"An error has occurred trying to send a text. {e}", exc_info=True)
+payload: dict[str, object] = {
+    "type": 3,
+    "nonce": str(int(time.time() * 1000 + random.randint(100, 999))),
+    "guild_id": guild_id,
+    "channel_id": tree_channel_id,
+    "message_id": tree_message_id,
+    "application_id": tree_id,
+    "session_id": session_id,
+    "data": {
+        "component_type": 2,
+        "custom_id": "grow"
+    }
+}
+
+
+def water():
+    r = requests.post(
+        "https://discord.com/api/v9/interactions",
+        headers=tree_headers,
+        cookies=tree_cookies,
+        json=payload
+    )
+    if not r.ok:
+        code_logger.error(f"Error: {r.status_code} - {r.text}", exc_info=True)

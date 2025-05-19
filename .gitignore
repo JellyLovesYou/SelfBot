@@ -23,10 +23,17 @@ bin/
 *.egg-info/
 
 *.log
+
 activity.json
 telecom.json
 config.json
+
+session.txt
 tokens.txt
+
+Cookies
+Local State
+
 .flake8
 
 .DS_Store

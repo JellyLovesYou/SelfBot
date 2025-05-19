@@ -108,6 +108,7 @@
 
 - **pokemon**
 automatically catches pokemon from `Pokétwo#8236` if enabled in config, stopping if verification is required and optionally sending you a text letting you know.
+will pull cookies from your browser and attempt to fake your headers to verify through poketwo
 
 - **logging**
 logs user mentions, and pokemon catching activity
@@ -152,6 +153,7 @@ pip install -r requirements.txt
 Open `data/config/config.show.jsonc` file in a text editor.
 Replace the placeholders with your actual values, remove comments, change to config.json
 You can also just copy the contents into `data/config/config.json` after creating it.
+Same with `data/config/telecom.show.jsonc` -> `data/config/telecom.json`
 
 ## Running the Selfbot
 
