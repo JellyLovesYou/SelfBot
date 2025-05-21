@@ -2,15 +2,19 @@
     "main":{
         "prefix": "", // prefix
         "user id": "", // your user id
+        "nickname": "",
         "version": "1.0.1",
         "catching?": true,
         "p2assistant?": false,
         "texts?": true,
         "helpers?": true,
-        "solving?": true
+        "solving?": true,
+        "sniping?": true,
+        "fishing?": true
     },
     "text": {
-        "pokemon": true
+        "pokemon": true,
+        "fishing": true
     },
     "paths":{
         "env": "", // absolute path to .env
@@ -32,6 +36,9 @@
         "tree id": "972637072991068220",
         "tree": "", // message id for Grow a Tree#5130
         "tree channel": "", // channel id for Grow a Tree#5130
+        "fish id": "574652751745777665",
+        "fish message": "", // mesage id for virtual fisher
+        "fish custom": "fish 936737", // example custom fish id you need to obtain
         "guild": "" // guild id for Grow a Tree#5130
     }
 }

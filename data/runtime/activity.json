@@ -1,11 +1,9 @@
 {
   "sending": {
-    "active": true,
+    "active": false,
     "text": null,
     "length": 10,
     "channel id": 1243262198621671526
   },
-  "reactions": {
-
-  }
+  "reactions": {}
 }

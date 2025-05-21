@@ -321,20 +321,6 @@ fishing_headers: dict[str, str] = {
     'Referer': f'https://discord.com/channels/{guild_id}/{fishing_channel}',
 }
 
-fishing_payload: dict[str, object] = {
-    "type": 3,
-    "nonce": str(int(time.time() * 1000 + random.randint(100, 999))),
-    "guild_id": guild_id,
-    "channel_id": fishing_channel,
-    "message_id": fish_message_id,
-    "application_id": fish_id,
-    "session_id": session_id,
-    "data": {
-        "component_type": 2,
-        "custom_id": fish_custom
-    }
-}
-
 
 async def load_cookies(context: BrowserContext) -> None:
     if cookies_path.exists():
