@@ -16,9 +16,9 @@ from discord import Message, TextChannel
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from utils.telecom import text, water, p2verification
+from utils.telecom import text, water, p2verification, fish, start_browser
 from utils.data import p2verification_message
-from utils.utils import clean_logs, load_activity, save_activity, code_logger, discord_logger, pokemon_logger, tree_logger, env, prefix
+from utils.utils import clean_logs, load_activity, save_activity, code_logger, discord_logger, pokemon_logger, tree_logger, fish_logger, env, prefix
 
 
 config_path = Path("data/config/config.json")
@@ -28,22 +28,28 @@ config_path.parent.mkdir(parents=True, exist_ok=True)
 with open(config_path) as f:
     config = json.load(f)
 
-bot_version = config['main']['version']
+bot_version = str(config['main']['version'])
+nickname = str(config['main']['nickname'])
 catching_check = bool(config['main']['catching?'])
 p2assistant_check = bool(config['main']['p2assistant?'])
 helpers_check = bool(config['main']['helpers?'])
 solving_check = bool(config['main']['solving?'])
+sniping_check = bool(config['main']['sniping?'])
+fishing_check = bool(config['main']['fishing?'])
 user_id = int(config['main']['user id'])
 watch_id = int(config['ids']['watch id'])
+fish_watch_id = int(config['ids']['fish id'])
 mention_id = int(config['ids']['mention id'])
 tree_message_id = int(config['ids']['tree'])
 tree_channel_id = int(config['ids']['tree channel'])
-pokemon_text_check = config['text']['pokemon']
-helpers = config['paths']['helpers']
-restart = config['paths']['restart']
-pokemon = config['paths']['pokemon']
-session = config['paths']['session']
-venv = config['paths']['venv']
+fishing_channel = int(config['ids']['fish channel'])
+pokemon_text_check = bool(config['text']['pokemon'])
+fishing_text_check = bool(config['text']['fishing'])
+helpers = str(config['paths']['helpers'])
+restart = str(config['paths']['restart'])
+pokemon = str(config['paths']['pokemon'])
+session = str(config['paths']['session'])
+venv = str(config['paths']['venv'])
 Lego = commands.Bot(command_prefix=prefix, self_bot=True)
 
 
@@ -57,6 +63,8 @@ pokemon_data = {}
 catching = True
 already_triggered = False
 tree_monitor_task = None
+fishing_loop_check = None
+fishing_clear = True
 helper_proc = None
 
 
@@ -172,11 +180,41 @@ async def tree_monitor_loop():
         await asyncio.sleep(30)
 
 
+async def start_fishing_loop():
+    global fishing_check
+    global fishing_clear
+    global fishing_loop_check
+    if fishing_check and fishing_clear:
+        if fishing_loop_check is None or fishing_loop_check.done():
+            fishing_loop_check = asyncio.create_task(fishing_loop())
+            fish_logger.info("Fish monitor loop task created")
+        else:
+            fish_logger.info("Fish monitor loop already running")
+
+
+async def fishing_loop():
+    global fishing_check
+    global fishing_clear
+    if fishing_check and fishing_clear:
+        fish_logger.info("Fish monitor loop started")
+        await Lego.wait_until_ready()
+        await start_browser()
+        while fishing_clear:
+            try:
+                fish_logger.info("Fish called")
+                await fish()
+                await asyncio.sleep(5)
+                fish_logger.info("waiting 5s")
+            except asyncio.CancelledError:
+                fish_logger.info("Fishing fish loop cancelled.")
+
+
 @Lego.event
 async def on_message(message: discord.Message):
     global catching
     global last_help_time
     global already_triggered
+    global fishing_clear
     if catching_check and catching:
         if message.author.id == mention_id:
             if message.embeds:
@@ -206,7 +244,7 @@ async def on_message(message: discord.Message):
                                 def response_check(m: Message) -> bool:
                                     return (
                                         m.author.id == mention_id and m.channel.id == message.channel.id and m.created_at > help_msg_time
-                                    )
+                                    )  # type: ignore
 
                                 try:
                                     await Lego.wait_for("message", timeout=5.0, check=response_check)
@@ -239,6 +277,8 @@ async def on_message(message: discord.Message):
                             if solving_check:
                                 pokemon_logger.info("This part was gotten too aswell.")
                                 p2verification()
+                                catching = False
+                                already_triggered = True
 
                             elif pokemon_text_check:
                                 await text(p2verification_message)
@@ -316,6 +356,31 @@ async def on_message(message: discord.Message):
                 except KeyError as e:
                     code_logger.error(f'KeyError for {e} in message: {message.content}', exc_info=True)
 
+    if sniping_check:
+        if message.embeds:
+            for embed in message.embeds:
+                embed_content = str(embed.title or "") + str(embed.description or "")
+                if "You received a gift" in embed_content:
+                    discord_logger.info("Nitro spotted")
+
+    if message.author.id == fish_watch_id:
+        if fishing_check:
+            if message.embeds:
+                for embed in message.embeds:
+                    embed_content = str(embed.title or "") + str(embed.description or "")
+                    if "Anti-bot" in embed_content:
+                        try:
+                            fishing_clear = False
+                            fish_logger.warning("Fisher is asking for verification")
+
+                            if fishing_text_check:
+                                await text("Virtual Fisher is asking for verification")
+                                fish_logger.info("A text was sent")
+                                stop_sending()
+
+                        except Exception as e:
+                            code_logger.error(f"An exception occurred while appending fishing.txt, {e}", exc_info=True)
+
     if Lego.user in message.mentions:
         discord_logger.info(f"Message from {message.author}: {message.content}")
 
@@ -361,6 +426,7 @@ async def on_ready():
 
     try:
         await start_tree_monitor()
+        await start_fishing_loop()
     except Exception as e:
         code_logger.error(f"There was an error trying to monitor the tree, {e}", exc_info=True)
 
@@ -378,10 +444,4 @@ if __name__ == "__main__":
     ctypes.windll.kernel32.SetThreadExecutionState(0x80000002)
     if token is None:
         raise ValueError("TOKEN environment variable is missing.")
-    '''
-    try:
-        p2verification()
-    except Exception as e:
-        code_logger.error(f"{e}")
-    '''
     Lego.run(token)

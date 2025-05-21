@@ -14,7 +14,7 @@ with open(Path("data/config/config.json")) as f:
 activity = config["paths"]["activity"]
 env = config['paths']['env']
 prefix = config['main']['prefix']
-delay = round(random.uniform(2, 2.20), 2)
+delay = random.randint(240, 300) / 100
 Lego = commands.Bot(command_prefix=prefix, self_bot=True)
 
 
@@ -36,16 +36,18 @@ def setup_logger(name: str, log_file: Path, level: int = logging.INFO) -> loggin
 
 
 log_paths = {
-    'code': config['paths']['code logs'],
-    'discord': config['paths']['discord logs'],
-    'pokemon': config['paths']['pokemon logs'],
-    'tree': config['paths']['tree logs']
+    'code': "data/logs/code.log",
+    'discord': "data/logs/discord.log",
+    'pokemon': "data/logs/pokemon.log",
+    'tree': "data/logs/tree.log",
+    'fish': "data/logs/fish.log"
 }
 
 code_logger = setup_logger('code', Path(log_paths['code']))
 discord_logger = setup_logger('discord', Path(log_paths['discord']))
 pokemon_logger = setup_logger('pokemon', Path(log_paths['pokemon']))
 tree_logger = setup_logger("tree", Path(log_paths['tree']))
+fish_logger = setup_logger("fish", Path(log_paths['fish']))
 
 
 def clean_logs():

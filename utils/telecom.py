@@ -6,6 +6,7 @@ import os
 import time
 import requests
 import random
+import socket
 import subprocess
 from email.message import EmailMessage
 from typing import Any, Dict, Optional
@@ -13,6 +14,7 @@ from typing import Any, Dict, Optional
 from twocaptcha import TwoCaptcha  # type: ignore[reportMissingTypeStubs]
 from dotenv import load_dotenv
 from selenium import webdriver
+from playwright.async_api import async_playwright, BrowserContext, Route, Request
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
@@ -21,11 +23,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.webdriver import WebDriver as ChromeDriver
 
-from utils.utils import code_logger, pokemon_logger, env
+from utils.utils import code_logger, pokemon_logger, fish_logger, env
 from utils.data import verification_link
 
 load_dotenv(dotenv_path=Path(env))
 token: str = os.getenv('discord_token') or ''
+user_email: str = os.getenv('user_email') or ''
+user_password: str = os.getenv('user_passwrod') or ''
 TwoCaptcha_token: str = os.getenv('twocaptcha') or ''
 solver = TwoCaptcha(TwoCaptcha_token)
 config_path = Path("data/config/config.json")
@@ -34,10 +38,15 @@ config_path.parent.mkdir(parents=True, exist_ok=True)
 with open(config_path) as f:
     config = json.load(f)
 
+fishing = bool(config['main']['fishing?'])
 guild_id = int(config['ids']['guild'])
 tree_channel_id = int(config['ids']['tree channel'])
 tree_message_id = int(config['ids']['tree'])
 tree_id = int(config['ids']['tree id'])
+fish_message_id = int(config['ids']['fish message'])
+fishing_channel = int(config['ids']['fish channel'])
+fish_custom = str(config['ids']['fish custom'])
+fish_id = int(config['ids']['fish id'])
 telecom_path = str(config['paths']['telecom'])
 session_path = str(config['paths']['session'])
 
@@ -50,7 +59,13 @@ binary_path = str(data['main']['binary'])
 debug_port = int(data['main']['port'])
 user_agent = data['headers']['base']['User-Agent']
 X_Super_Properties = data['headers']['tree']['X-Super-Properties']
-tree_cookies = data['cookies']['tree']
+
+fish_url = f"https://discord.com/channels/{guild_id}/{fishing_channel}"
+cookies_path = Path("data/config/cookies.json")
+playwright = None
+browser = None
+context = None
+page = None
 
 
 def is_browser_debug_running(port: int = debug_port) -> bool:
@@ -67,6 +82,17 @@ def is_browser_debug_running(port: int = debug_port) -> bool:
         return False
 
 
+def wait_for_debug_port(host: str = "127.0.0.1", port: int = debug_port, timeout: float = 30.0):
+
+    start = time.time()
+    while time.time() - start < timeout:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            if sock.connect_ex((host, port)) == 0:
+                return True
+        time.sleep(0.1)
+    raise TimeoutError(f"Port {port} not ready after {timeout} seconds.")
+
+
 def launch_browser_with_debug(url: Optional[str] = None):
     try:
         cmd = [
@@ -77,15 +103,22 @@ def launch_browser_with_debug(url: Optional[str] = None):
         if url:
             cmd.append(url)
 
-        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(cmd)
 
+        wait_for_debug_port(port=debug_port, timeout=15)
+
+    except TimeoutError as e:
+        code_logger.error(f"Failed to open debug port in time: {e}")
+        raise
     except Exception as e:
-        code_logger.error(f"An error has occurred while launching browser with debug, {e}")
+        code_logger.error(f"An error occurred while launching browser with debug: {e}")
+        raise
 
 
 def p2verification() -> Optional[Dict[str, Any]]:
     pokemon_logger.info("p2 verification function called, attempting to bypass verification.")
     launch_browser_with_debug(verification_link)
+    wait_for_debug_port(port=debug_port)
 
     options = webdriver.ChromeOptions()  # type: ignore
     options.binary_location = binary_path
@@ -103,7 +136,9 @@ def p2verification() -> Optional[Dict[str, Any]]:
         sitekey_recaptcha = "6LfgtMoaAAAAAPB_6kwTMPj9HG_XxRLL7n92jYkD"
 
         try:
+            code_logger.info("trying to get captcha results...")
             result_recaptcha: Dict[str, Any] = solver.recaptcha(sitekey=sitekey_recaptcha, url=verification_link)  # type: ignore
+            code_logger.info(f"result from twocaptcha: {result_recaptcha}")
             if not result_recaptcha:
                 code_logger.error("2Captcha returned None for recaptcha")
                 return None
@@ -235,6 +270,7 @@ def lookup_carrier_info(phone_number: str) -> Dict[str, Any]:
 with open(session_path, 'r') as f:
     session_id = f.read().strip()
 
+
 tree_headers: dict[str, str] = {
     'Authorization': token,
     'Content-Type': 'application/json',
@@ -244,7 +280,7 @@ tree_headers: dict[str, str] = {
 }
 
 
-payload: dict[str, object] = {
+tree_payload: dict[str, object] = {
     "type": 3,
     "nonce": str(int(time.time() * 1000 + random.randint(100, 999))),
     "guild_id": guild_id,
@@ -259,12 +295,127 @@ payload: dict[str, object] = {
 }
 
 
+def load_cookies_dict():
+    with open("data/config/cookies.json", "r") as f:
+        cookies_list = json.load(f)
+    return {cookie["name"]: cookie["value"] for cookie in cookies_list}
+
+
 def water():
+    cookies = load_cookies_dict()
     r = requests.post(
         "https://discord.com/api/v9/interactions",
         headers=tree_headers,
-        cookies=tree_cookies,
-        json=payload
+        cookies=cookies,
+        json=tree_payload
     )
     if not r.ok:
         code_logger.error(f"Error: {r.status_code} - {r.text}", exc_info=True)
+
+
+fishing_headers: dict[str, str] = {
+    'Authorization': token,
+    'Content-Type': 'application/json',
+    'User-Agent': user_agent,
+    'X-Super-Properties': X_Super_Properties,
+    'Referer': f'https://discord.com/channels/{guild_id}/{fishing_channel}',
+}
+
+fishing_payload: dict[str, object] = {
+    "type": 3,
+    "nonce": str(int(time.time() * 1000 + random.randint(100, 999))),
+    "guild_id": guild_id,
+    "channel_id": fishing_channel,
+    "message_id": fish_message_id,
+    "application_id": fish_id,
+    "session_id": session_id,
+    "data": {
+        "component_type": 2,
+        "custom_id": fish_custom
+    }
+}
+
+
+async def load_cookies(context: BrowserContext) -> None:
+    if cookies_path.exists():
+        cookies = json.loads(cookies_path.read_text())
+        await context.add_cookies(cookies)
+
+
+async def save_cookies(context: BrowserContext) -> None:
+    cookies = await context.cookies()
+    cookies_path.write_text(json.dumps(cookies, indent=2))
+
+
+async def start_browser():
+    if fishing:
+        global playwright, browser, context, page
+
+        if browser is not None:
+            return
+
+        playwright = await async_playwright().start()
+        browser = await playwright.chromium.launch(headless=True)
+        context = await browser.new_context()
+        await load_cookies(context)
+        page = await context.new_page()
+
+        async def route_handler(route: Route, request: Request) -> None:
+            headers = request.headers.copy()
+            headers.update(fishing_headers)
+            await route.continue_(headers=headers)
+
+        await page.route("**/*", route_handler)
+        await page.goto(fish_url, wait_until="networkidle")
+
+        try:
+            continue_button = page.locator('div.contents__201d5', has_text="Continue in Browser")
+            if await continue_button.is_visible():
+                fish_logger.info("Clicking 'Continue in Browser' button...")
+                await continue_button.click()
+        except Exception as e:
+            fish_logger.warning(f"Could not click 'Continue in Browser': {e}")
+
+        try:
+            if "discord.com/login" in page.url:
+                await page.fill('input[name="email"]', user_email)
+                await page.fill('input[name="password"]', user_password)
+                await page.click('button[type="submit"]:has-text("Log In")')
+        except Exception as e:
+            fish_logger.warning(f"Could not sign in: {e}")
+
+        try:
+            age_restricted_div = page.locator('div.title__7184c', has_text="Age-Restricted")
+            if await age_restricted_div.count() > 0:
+                button = page.locator('button.button__201d5:has-text("Continue")')
+                await button.wait_for(state="visible", timeout=5000)
+                await button.click()
+        except Exception as e:
+            fish_logger.warning(f"Failed to leave age restricted warning: {e}")
+
+        await save_cookies(context)
+
+
+async def send_fish_command():
+    if page is None:
+        raise RuntimeError("Browser is not initialized. Call start_browser_once() first.")
+
+    await page.evaluate("""
+    () => {
+        const buttons = Array.from(document.querySelectorAll('button'));
+        for (const btn of buttons) {
+            const labelDiv = btn.querySelector('div.label__57f77');
+            if (labelDiv && labelDiv.textContent.trim() === 'Fish Again') {
+                btn.click();
+                break;
+            }
+        }
+    }
+    """)
+
+
+async def fish():
+    try:
+        await send_fish_command()
+    except Exception as e:
+        code_logger.error(f"An error has occurred while trying to fish: {e}")

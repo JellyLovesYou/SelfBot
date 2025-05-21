@@ -44,6 +44,7 @@ Arbok
 Arboliva
 Arcanine
 Arceus
+Archaludon
 Archen
 Archeops
 Arctibax
@@ -208,6 +209,7 @@ Crocalor
 Croconaw
 Crustle
 Cryogonal
+Cube Slime Grimer
 Cubchoo
 Cubone
 Cufant
@@ -238,6 +240,7 @@ Dialga
 Diancie
 Diggersby
 Diglett
+Dipplin
 Ditto
 Dodrio
 Doduo
@@ -313,6 +316,7 @@ Fennekin
 Feraligatr
 Ferroseed
 Ferrothorn
+Fezandipiti
 Fidough
 Finizen
 Finneon
@@ -399,6 +403,7 @@ Golisopod
 Golurk
 Goodra
 Goomy
+Gouging Fire
 Gorebyss
 Gossifleur
 Gothita
@@ -475,6 +480,7 @@ Houndoom
 Houndour
 Houndstone
 Huntail
+Hydrapple
 Hydreigon
 Hypno
 Igglybuff
@@ -485,7 +491,9 @@ Indeedee
 Infernape
 Inkay
 Inteleon
+Iron Boulder
 Iron Bundle
+Iron Crown
 Iron Hands
 Iron Jugulis
 Iron Leaves
@@ -650,6 +658,7 @@ Mudkip
 Mudsdale
 Muk
 Munchlax
+Munkidori
 Munna
 Murkrow
 Musharna
@@ -679,7 +688,9 @@ Nymble
 Obstagoon
 Octillery
 Oddish
+Ogerpon
 Oinkologne
+Okidogi
 Omanyte
 Omastar
 Onix
@@ -710,6 +721,7 @@ Pawmi
 Pawmo
 Pawmot
 Pawniard
+Pecharunt
 Pelipper
 Perrserker
 Persian
@@ -737,6 +749,7 @@ Politoed
 Poliwag
 Poliwhirl
 Poliwrath
+Poltchageist
 Polteageist
 Pom-Pom Oricorio
 Pom-pom Oricorio
@@ -766,6 +779,7 @@ Quilladin
 Qwilfish
 Raboot
 Rabsca
+Raging Bolt
 Raichu
 Raikou
 Rainy Castform
@@ -865,6 +879,7 @@ Silvally
 Simipour
 Simisage
 Simisear
+Sinistcha
 Sinistea
 Sirfetch'd
 Sizzlipede
@@ -966,9 +981,11 @@ Teddiursa
 Tentacool
 Tentacruel
 Tepig
+Terapagos
 Terrakion
 Therian Enamorus
 Thievul
+Three-Segment Dudunsparce
 Throh
 Thundurus
 Thwackey

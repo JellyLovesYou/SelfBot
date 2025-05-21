@@ -27,6 +27,7 @@ bin/
 activity.json
 telecom.json
 config.json
+cookies.json
 
 session.txt
 tokens.txt
