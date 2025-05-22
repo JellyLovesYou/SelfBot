@@ -1,9 +1,18 @@
 {
   "sending": {
-    "active": false,
+    "active": true,
     "text": null,
     "length": 10,
     "channel id": 1243262198621671526
   },
-  "reactions": {}
+  "reactions": {
+    "1": {
+      "active": true,
+      "reaction": "\ud83c\uddeb, \ud83c\udd70\ufe0f, \ud83c\uddec, \ud83c\uddf4, \ud83c\uddf9",
+      "target_user_ids": [
+        1305687881129656392
+      ],
+      "guild_id": null
+    }
+  }
 }

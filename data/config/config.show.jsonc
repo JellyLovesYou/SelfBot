@@ -18,17 +18,7 @@
     },
     "paths":{
         "env": "", // absolute path to .env
-        "venv": "", // absolute path to python.exe in venv 
-        "activity": "data/runtime/activity.json",
-        "code logs": "data/logs/code.log",
-        "discord logs": "data/logs/discord.log",
-        "pokemon logs": "data/logs/pokemon.log",
-        "tree logs": "data/logs/tree.log",
-        "helpers": "helpers.py",
-        "restart": "data/runtime/restart.signal",
-        "pokemon": "data/text/pokemon.txt",
-        "session": "data/text/session.txt",
-        "telecom": "data/config/telecom.json"
+        "venv": "" // absolute path to python.exe in venv 
     },
     "ids":{
         "watch id": "854233015475109888",
@@ -37,8 +27,7 @@
         "tree": "", // message id for Grow a Tree#5130
         "tree channel": "", // channel id for Grow a Tree#5130
         "fish id": "574652751745777665",
-        "fish message": "", // mesage id for virtual fisher
-        "fish custom": "fish 936737", // example custom fish id you need to obtain
-        "guild": "" // guild id for Grow a Tree#5130
+        "fish channel": "", // channel id for Virtual Fisher#7036
+        "guild": "" // guild id
     }
 }

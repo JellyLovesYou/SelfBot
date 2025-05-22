@@ -1,57 +1,49 @@
 from pathlib import Path
 import json
-import psutil
 import smtplib
 import os
+import re
 import time
 import requests
 import random
-import socket
-import subprocess
+import asyncio
 from email.message import EmailMessage
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Set
 
-from twocaptcha import TwoCaptcha  # type: ignore[reportMissingTypeStubs]
 from dotenv import load_dotenv
-from selenium import webdriver
-from playwright.async_api import async_playwright, BrowserContext, Route, Request
+from playwright.async_api import async_playwright, BrowserContext, Route, Request, Page, Locator
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 import undetected_chromedriver as uc  # type: ignore[reportMissingTypeStubs]
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.common.exceptions import WebDriverException
-from selenium.webdriver.chrome.webdriver import WebDriver as ChromeDriver
 
-from utils.utils import code_logger, pokemon_logger, fish_logger, env
-from utils.data import verification_link
+from utils.utils import code_logger, fish_logger, tree_logger, env  # , pokemon_logger
+#  from utils.data import verification_link
 
 load_dotenv(dotenv_path=Path(env))
 token: str = os.getenv('discord_token') or ''
 user_email: str = os.getenv('user_email') or ''
 user_password: str = os.getenv('user_passwrod') or ''
-TwoCaptcha_token: str = os.getenv('twocaptcha') or ''
-solver = TwoCaptcha(TwoCaptcha_token)
 config_path = Path("data/config/config.json")
 config_path.parent.mkdir(parents=True, exist_ok=True)
 
 with open(config_path) as f:
     config = json.load(f)
 
-fishing = bool(config['main']['fishing?'])
-guild_id = int(config['ids']['guild'])
-tree_channel_id = int(config['ids']['tree channel'])
-tree_message_id = int(config['ids']['tree'])
-tree_id = int(config['ids']['tree id'])
-fish_message_id = int(config['ids']['fish message'])
-fishing_channel = int(config['ids']['fish channel'])
-fish_custom = str(config['ids']['fish custom'])
-fish_id = int(config['ids']['fish id'])
-telecom_path = str(config['paths']['telecom'])
-session_path = str(config['paths']['session'])
+solving = bool(config['main']['solving?'])
+if solving:
+    from twocaptcha import TwoCaptcha  # type: ignore[reportMissingTypeStubs]
+    TwoCaptcha_token: str = os.getenv('twocaptcha') or ''
+    solver = TwoCaptcha(TwoCaptcha_token)
 
+guild_id = int(config['ids']['guild'])
+telecom_path = "data/config/telecom.json"
+session_path = "data/text/session.txt"
 with open(telecom_path) as f:
     data = json.load(f)
+with open(session_path, 'r') as f:
+    session_id = f.read().strip()
 
 browser = str(data['main']['browser'])
 browser_path = str(data['main']['path'])
@@ -60,7 +52,6 @@ debug_port = int(data['main']['port'])
 user_agent = data['headers']['base']['User-Agent']
 X_Super_Properties = data['headers']['tree']['X-Super-Properties']
 
-fish_url = f"https://discord.com/channels/{guild_id}/{fishing_channel}"
 cookies_path = Path("data/config/cookies.json")
 playwright = None
 browser = None
@@ -68,116 +59,60 @@ context = None
 page = None
 
 
-def is_browser_debug_running(port: int = debug_port) -> bool:
-    try:
-        for proc in psutil.process_iter(['name', 'cmdline']):
-            if proc.info['name'] and browser in proc.info['name'].lower():
-                cmdline = ' '.join(proc.info['cmdline']).lower()
-                if f'--remote-debugging-port={port}' in cmdline:
-                    return True
-        return False
-
-    except Exception as e:
-        code_logger.error(f"An error has occurred while checking if the browser debug is running, {e}")
-        return False
-
-
-def wait_for_debug_port(host: str = "127.0.0.1", port: int = debug_port, timeout: float = 30.0):
-
-    start = time.time()
-    while time.time() - start < timeout:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            if sock.connect_ex((host, port)) == 0:
-                return True
-        time.sleep(0.1)
-    raise TimeoutError(f"Port {port} not ready after {timeout} seconds.")
+fishing_check = bool(config['main']['fishing?'])
+if fishing_check:
+    fishing_channel = int(config['ids']['fish channel'])
+    fish_url = f"https://discord.com/channels/{guild_id}/{fishing_channel}"
+    fishing_headers: dict[str, str] = {
+        'Authorization': token,
+        'Content-Type': 'application/json',
+        'User-Agent': user_agent,
+        'X-Super-Properties': X_Super_Properties,
+        'Referer': f'https://discord.com/channels/{guild_id}/{fishing_channel}',
+    }
 
 
-def launch_browser_with_debug(url: Optional[str] = None):
-    try:
-        cmd = [
-            binary_path,
-            f'--remote-debugging-port={debug_port}',
-            f'--user-data-dir={browser_path}'
-        ]
-        if url:
-            cmd.append(url)
-
-        subprocess.Popen(cmd)
-
-        wait_for_debug_port(port=debug_port, timeout=15)
-
-    except TimeoutError as e:
-        code_logger.error(f"Failed to open debug port in time: {e}")
-        raise
-    except Exception as e:
-        code_logger.error(f"An error occurred while launching browser with debug: {e}")
-        raise
-
-
-def p2verification() -> Optional[Dict[str, Any]]:
-    pokemon_logger.info("p2 verification function called, attempting to bypass verification.")
-    launch_browser_with_debug(verification_link)
-    wait_for_debug_port(port=debug_port)
-
-    options = webdriver.ChromeOptions()  # type: ignore
-    options.binary_location = binary_path
-    options.debugger_address = f"127.0.0.1:{debug_port}"
-
-    driver: Optional[ChromeDriver] = None
-
-    try:
-        driver = webdriver.Chrome(options=options)
-        code_logger.info(f"Attempting to open {verification_link}")
-        driver.execute_script(f"window.open('{verification_link}', '_blank');")  # type: ignore
-        driver.switch_to.window(driver.window_handles[-1])
-        driver.refresh()
-
-        sitekey_recaptcha = "6LfgtMoaAAAAAPB_6kwTMPj9HG_XxRLL7n92jYkD"
-
-        try:
-            code_logger.info("trying to get captcha results...")
-            result_recaptcha: Dict[str, Any] = solver.recaptcha(sitekey=sitekey_recaptcha, url=verification_link)  # type: ignore
-            code_logger.info(f"result from twocaptcha: {result_recaptcha}")
-            if not result_recaptcha:
-                code_logger.error("2Captcha returned None for recaptcha")
-                return None
-
-            driver.execute_script("""document.getElementById("g-recaptcha-response").style.display = "block"; document.getElementById("g-recaptcha-response").value = arguments[0];""", result_recaptcha)  # type: ignore
-
-        except Exception as e:
-            code_logger.error(f"Solver error: {e}", exc_info=True)
-            return None
-
-    except WebDriverException as e:
-        code_logger.error(f"Chrome failed: {e}", exc_info=True)
-    except Exception as e:
-        code_logger.error(f"Unexpected error: {e}", exc_info=True)
-    finally:
-        try:
-            if driver:
-                driver.quit()
-        except Exception:
-            pass
+tree_check = bool(config['main']['tree?'])
+if tree_check:
+    tree_channel_id = int(config['ids']['tree channel'])
+    tree_message_id = int(config['ids']['tree'])
+    tree_id = int(config['ids']['tree id'])
+    tree_headers: dict[str, str] = {
+        'Authorization': token,
+        'Content-Type': 'application/json',
+        'User-Agent': user_agent,
+        'X-Super-Properties': X_Super_Properties,
+        'Referer': f'https://discord.com/channels/{guild_id}/{tree_channel_id}',
+    }
+    watering_payload: dict[str, object] = {
+        "type": 3,
+        "nonce": str(int(time.time() * 1000 + random.randint(100, 999))),
+        "guild_id": guild_id,
+        "channel_id": tree_channel_id,
+        "message_id": tree_message_id,
+        "application_id": tree_id,
+        "session_id": session_id,
+        "data": {
+            "component_type": 2,
+            "custom_id": "grow"
+        }
+    }
+    catching_payload: dict[str, object] = {
+        "type": 3,
+        "nonce": str(int(time.time() * 1000 + random.randint(100, 999))),
+        "guild_id": guild_id,
+        "channel_id": tree_channel_id,
+        "message_id": tree_message_id,
+        "application_id": tree_id,
+        "session_id": session_id,
+        "data": {
+            "component_type": 2,
+            "custom_id": "bugcatch"
+        }
+    }
 
 
-def wait_recaptcha_ready(driver: ChromeDriver, timeout: float):
-    code_logger.info("Waiting for recaptcha")
-    iframe = WebDriverWait(driver, timeout).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, "iframe [title='reCAPTCHA']"))
-    )
-    driver.switch_to.frame(iframe)
-
-    WebDriverWait(driver, timeout).until(
-        EC.visibility_of_element_located((By.ID, "recaptcha-anchor"))
-    )
-
-    code_logger.info("Waited for recaptcha, solving.")
-    driver.switch_to.default_content()
-    return True
-
-
-texting_check = config['main']['texts?']
+texting_check = bool(config['main']['texts?'])
 if texting_check:
     email = os.getenv('email')
     phone = os.getenv('phone')
@@ -267,34 +202,6 @@ def lookup_carrier_info(phone_number: str) -> Dict[str, Any]:
         driver.quit()
 
 
-with open(session_path, 'r') as f:
-    session_id = f.read().strip()
-
-
-tree_headers: dict[str, str] = {
-    'Authorization': token,
-    'Content-Type': 'application/json',
-    'User-Agent': user_agent,
-    'X-Super-Properties': X_Super_Properties,
-    'Referer': f'https://discord.com/channels/{guild_id}/{tree_channel_id}',
-}
-
-
-tree_payload: dict[str, object] = {
-    "type": 3,
-    "nonce": str(int(time.time() * 1000 + random.randint(100, 999))),
-    "guild_id": guild_id,
-    "channel_id": tree_channel_id,
-    "message_id": tree_message_id,
-    "application_id": tree_id,
-    "session_id": session_id,
-    "data": {
-        "component_type": 2,
-        "custom_id": "grow"
-    }
-}
-
-
 def load_cookies_dict():
     with open("data/config/cookies.json", "r") as f:
         cookies_list = json.load(f)
@@ -302,24 +209,34 @@ def load_cookies_dict():
 
 
 def water():
-    cookies = load_cookies_dict()
-    r = requests.post(
-        "https://discord.com/api/v9/interactions",
-        headers=tree_headers,
-        cookies=cookies,
-        json=tree_payload
-    )
-    if not r.ok:
-        code_logger.error(f"Error: {r.status_code} - {r.text}", exc_info=True)
+    if tree_check:
+        cookies = load_cookies_dict()
+        r = requests.post(
+            "https://discord.com/api/v9/interactions",
+            headers=tree_headers,
+            cookies=cookies,
+            json=watering_payload
+        )
+        if r.ok:
+            tree_logger.info("Watering payload sent successfully")
+        if not r.ok:
+            code_logger.error(f"Error: {r.status_code} - {r.text}", exc_info=True)
 
 
-fishing_headers: dict[str, str] = {
-    'Authorization': token,
-    'Content-Type': 'application/json',
-    'User-Agent': user_agent,
-    'X-Super-Properties': X_Super_Properties,
-    'Referer': f'https://discord.com/channels/{guild_id}/{fishing_channel}',
-}
+def catch():
+    if tree_check:
+        code_logger.info("Attemping to catch bug")
+        cookies = load_cookies_dict()
+        r = requests.post(
+            "https://discord.com/api/v9/interactions",
+            headers=tree_headers,
+            cookies=cookies,
+            json=catching_payload
+        )
+        if r.ok:
+            tree_logger.info("Catching payload sent successfully")
+        if not r.ok:
+            code_logger.error(f"Error: {r.status_code} - {r.text}", exc_info=True)
 
 
 async def load_cookies(context: BrowserContext) -> None:
@@ -334,7 +251,7 @@ async def save_cookies(context: BrowserContext) -> None:
 
 
 async def start_browser():
-    if fishing:
+    if fishing_check:
         global playwright, browser, context, page
 
         if browser is not None:
@@ -381,23 +298,64 @@ async def start_browser():
 
         await save_cookies(context)
 
+        async def ephemeral_messages():
+            fish_delay_data = {"delay": 3.0}
+            seen_messages: Set[str] = set()
+
+            while True:
+                if page is not None:
+                    ephemeral_messages = page.locator('[class*="ephemeral__"] [id^="message-content-"]')
+                    count = await ephemeral_messages.count()
+
+                    for i in range(count):
+                        msg = await ephemeral_messages.nth(i).inner_text()
+                        if msg not in seen_messages:
+                            seen_messages.add(msg)
+                            fish_logger.info(f"[EPHEMERAL] {msg}")
+
+                            match = re.search(r"Your cooldown:\s*([\d.]+)s", msg)
+                            if match:
+                                raw_delay = float(match.group(1))
+                                fish_delay_data["delay"] = raw_delay + 1.0
+
+                await asyncio.sleep(10)
+
+        asyncio.create_task(ephemeral_messages())
+
+
+async def get_newest_message_button(page: Page) -> Locator:
+    try:
+        locator = page.locator('button:has(div.label__57f77:text("Fish Again"))').last
+        await locator.wait_for(timeout=10000)
+        return locator
+    except Exception as e:
+        code_logger.error(f"An exception occurred while trying to get the last fishing message: {e}")
+        raise
+
 
 async def send_fish_command():
     if page is None:
         raise RuntimeError("Browser is not initialized. Call start_browser_once() first.")
 
-    await page.evaluate("""
-    () => {
-        const buttons = Array.from(document.querySelectorAll('button'));
-        for (const btn of buttons) {
-            const labelDiv = btn.querySelector('div.label__57f77');
-            if (labelDiv && labelDiv.textContent.trim() === 'Fish Again') {
-                btn.click();
-                break;
-            }
-        }
-    }
-    """)
+    try:
+        fish_button = await get_newest_message_button(page)
+        await fish_button.wait_for(state="visible", timeout=5000)
+        await fish_button.click()
+    except Exception as e:
+        fish_logger.warning(f"Failed to click fish button: {e}")
+
+
+async def send_verify_code(code: str):
+    if page is None:
+        raise RuntimeError("Browser is not initialized. Call start_browser() first.")
+
+    try:
+        chat_input = page.locator('textarea[aria-label*="Message"]')
+        await chat_input.fill(f"/verify {code}")
+        await chat_input.press("Enter")
+        fish_logger.info(f"Sent verification command: /verify {code}")
+    except Exception as e:
+        fish_logger.error(f"Failed to send verification command: {e}")
 
 
 async def fish():

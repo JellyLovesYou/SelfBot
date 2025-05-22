@@ -1,0 +1,62 @@
+[
+  {
+    "name": "__dcfduid",
+    "value": "",
+    "domain": ".discord.com",
+    "path": "/",
+    "expires": -1,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "__sdcfduid",
+    "value": "",
+    "domain": ".discord.com",
+    "path": "/",
+    "expires": -1,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "__cfruid",
+    "value": "",
+    "domain": ".discord.com",
+    "path": "/",
+    "expires": -1,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "_cfuvid",
+    "value": "",
+    "domain": ".discord.com",
+    "path": "/",
+    "expires": -1,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "Lax"
+  },
+  {
+    "name": "cf_clearance",
+    "value": "",
+    "domain": ".discord.com",
+    "path": "/",
+    "expires": 1779401172.281411,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "None"
+  },
+  {
+    "name": "__cf_bm",
+    "value": "",
+    "domain": ".discord.gg",
+    "path": "/",
+    "expires": 1747867896.295188,
+    "httpOnly": true,
+    "secure": true,
+    "sameSite": "None"
+  }
+]

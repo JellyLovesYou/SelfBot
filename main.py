@@ -7,6 +7,7 @@ import pathlib
 import re
 import subprocess
 import time
+import aiohttp
 import atexit
 from pathlib import Path
 from typing import List, Optional
@@ -16,7 +17,7 @@ from discord import Message, TextChannel
 from discord.ext import commands
 from dotenv import load_dotenv
 
-from utils.telecom import text, water, p2verification, fish, start_browser
+from utils.telecom import text, water, fish, catch, start_browser, send_verify_code
 from utils.data import p2verification_message
 from utils.utils import clean_logs, load_activity, save_activity, code_logger, discord_logger, pokemon_logger, tree_logger, fish_logger, env, prefix
 
@@ -24,37 +25,46 @@ from utils.utils import clean_logs, load_activity, save_activity, code_logger, d
 config_path = Path("data/config/config.json")
 config_path.parent.mkdir(parents=True, exist_ok=True)
 
-
 with open(config_path) as f:
     config = json.load(f)
 
+venv = str(config['paths']['venv'])
+load_dotenv(dotenv_path=Path(env))
+token = os.getenv('discord_token')
+
 bot_version = str(config['main']['version'])
+username = str(config['main']['username'])
 nickname = str(config['main']['nickname'])
 catching_check = bool(config['main']['catching?'])
 p2assistant_check = bool(config['main']['p2assistant?'])
 helpers_check = bool(config['main']['helpers?'])
 solving_check = bool(config['main']['solving?'])
 sniping_check = bool(config['main']['sniping?'])
+
 fishing_check = bool(config['main']['fishing?'])
+if fishing_check:
+    fishing_paid = bool(config['main']['fishing paid?'])
+    fish_watch_id = int(config['ids']['fish id'])
+    fishing_channel = int(config['ids']['fish channel'])
+    fishing_text_check = bool(config['text']['fishing'])
+
 user_id = int(config['main']['user id'])
-watch_id = int(config['ids']['watch id'])
-fish_watch_id = int(config['ids']['fish id'])
-mention_id = int(config['ids']['mention id'])
-tree_message_id = int(config['ids']['tree'])
-tree_channel_id = int(config['ids']['tree channel'])
-fishing_channel = int(config['ids']['fish channel'])
-pokemon_text_check = bool(config['text']['pokemon'])
-fishing_text_check = bool(config['text']['fishing'])
-helpers = str(config['paths']['helpers'])
-restart = str(config['paths']['restart'])
-pokemon = str(config['paths']['pokemon'])
-session = str(config['paths']['session'])
-venv = str(config['paths']['venv'])
+if catching_check:
+    watch_id = int(config['ids']['watch id'])
+    mention_id = int(config['ids']['mention id'])
+    pokemon_text_check = bool(config['text']['pokemon'])
+
+tree_check = bool(config['main']['tree?'])
+if tree_check:
+    tree_message_id = int(config['ids']['tree'])
+    tree_channel_id = int(config['ids']['tree channel'])
+
+helpers = "helpers.py"
+restart = "data/runtime/restart.signal"
+pokemon = "data/text/pokemon.txt"
+session = "data/text/session.txt"
+
 Lego = commands.Bot(command_prefix=prefix, self_bot=True)
-
-
-load_dotenv(dotenv_path=Path(env))
-token = os.getenv('discord_token')
 last_help_time = 0
 cooldown_lock = asyncio.Lock()
 MAX_RETRIES = 1
@@ -160,15 +170,18 @@ async def tree_monitor_loop():
                 bot_user_id = Lego.user.id if Lego.user else None
 
                 if last_watered_user_id != bot_user_id:
+                    catch()
                     water()
-                    tree_logger.info(f"Tree watered, sleeping for 300s at {time.strftime('%X')}.")
-                    await asyncio.sleep(120)
+                    tree_logger.info(f"Tree watered, sleeping for 30s at {time.strftime('%X')}.")
+                    await asyncio.sleep(30)
                     tree_logger.info(f"Woke up at {time.strftime('%X')}")
+                    catch()
                     continue
                 else:
-                    tree_logger.info(f"Tree already watered, Sleeping for 300s at {time.strftime('%X')}.")
-                    await asyncio.sleep(120)
+                    tree_logger.info(f"Tree already watered, Sleeping for 30s at {time.strftime('%X')}.")
+                    await asyncio.sleep(30)
                     tree_logger.info(f"Woke up at {time.strftime('%X')}")
+                    catch()
                     continue
             else:
                 tree_logger.info("Tree not ready yet.")
@@ -203,10 +216,20 @@ async def fishing_loop():
             try:
                 fish_logger.info("Fish called")
                 await fish()
-                await asyncio.sleep(5)
-                fish_logger.info("waiting 5s")
+                await asyncio.sleep(4.3)
+                fish_logger.info("waiting 4s")
             except asyncio.CancelledError:
                 fish_logger.info("Fishing fish loop cancelled.")
+
+
+def extract_captcha_code(msg: str) -> Optional[str]:
+    code_block = re.search(r"```(.*?)```", msg, re.DOTALL)
+    if code_block:
+        inside = code_block.group(1)
+        match = re.search(r"Code:\s*([a-zA-Z0-9]+)", inside)
+        if match:
+            return match.group(1)
+    return None
 
 
 @Lego.event
@@ -276,7 +299,6 @@ async def on_message(message: discord.Message):
                         try:
                             if solving_check:
                                 pokemon_logger.info("This part was gotten too aswell.")
-                                p2verification()
                                 catching = False
                                 already_triggered = True
 
@@ -363,23 +385,89 @@ async def on_message(message: discord.Message):
                 if "You received a gift" in embed_content:
                     discord_logger.info("Nitro spotted")
 
-    if message.author.id == fish_watch_id:
-        if fishing_check:
+    if fishing_check:
+        if message.author.id == fish_watch_id:
             if message.embeds:
                 for embed in message.embeds:
                     embed_content = str(embed.title or "") + str(embed.description or "")
-                    if "Anti-bot" in embed_content:
+                    if str(username) and "Anti-bot" in embed_content:
                         try:
                             fishing_clear = False
                             fish_logger.warning("Fisher is asking for verification")
 
+                            for embed in message.embeds:
+                                if embed.image and embed.image.url:
+                                    image_url = embed.image.url
+                                    file_name = os.path.basename(image_url).split("?")[0]
+                                    save_path = os.path.join("data", "captchas", file_name)
+
+                                    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+                                    async with aiohttp.ClientSession() as session:
+                                        async with session.get(image_url) as resp:
+                                            if resp.status == 200:
+                                                with open(save_path, "wb") as f:
+                                                    f.write(await resp.read())
+                                                fish_logger.info(f"Captcha image saved to {save_path}")
+                                            else:
+                                                fish_logger.warning(f"Failed to download captcha image: HTTP {resp.status}")
+                                    break
+
                             if fishing_text_check:
                                 await text("Virtual Fisher is asking for verification")
                                 fish_logger.info("A text was sent")
-                                stop_sending()
+
+                            if "code:" in embed_content.lower():
+                                code = extract_captcha_code(embed_content)
+                                if code:
+                                    await send_verify_code(code)
+                                    fish_logger.warning(f"[CAPTCHA] Detected code: sending /verify {code}")
+                                    fishing_clear = True
 
                         except Exception as e:
                             code_logger.error(f"An exception occurred while appending fishing.txt, {e}", exc_info=True)
+
+                    if str(nickname) and "solve the captcha" in embed_content:
+                        try:
+                            fishing_clear = False
+                            fish_logger.warning("Fisher is asking for verification, stop fishing.")
+
+                            if fishing_text_check:
+                                await text("Virtual Fisher has already asked for verification, stop fishing.")
+
+                        except Exception as e:
+                            code_logger.error(f"An error has occurred, {e}", exc_info=True)
+
+                    if str(nickname) and "You caught:" in embed_content:
+                        try:
+                            fish_logger.debug(f"Raw embed content: {repr(embed_content)}")
+
+                            xp_match = re.search(r'(\d+,?\d*)', embed_content)
+                            xp = xp_match.group(1).replace(',', '') if xp_match else "0"
+
+                            if fishing_paid:
+                                payment_match = re.search(r'sold them for \$(\d+,?\d*)', embed_content)
+                                payment = payment_match.group(1).replace(',', '') if payment_match else "0"
+
+                                balance_match = re.search(r'now have \$(\d+,?\d*)', embed_content)
+                                balance = balance_match.group(1).replace(',', '') if balance_match else "0"
+
+                                fish_logger.info(f"you made ${payment}, and gained {xp} XP this catch, you now have ${balance}")
+                            else:
+                                fish_logger.info(f"you gained {xp} XP this catch.")
+                        except Exception as e:
+                            fish_logger.error(f"Failed to parse catch results: {e}")
+
+                    elif str(nickname) and "LEVEL UP" in embed_content:
+                        try:
+                            level_match = re.search(r"You are now level (\d+)", embed_content)
+                            if level_match:
+                                level = int(level_match.group(1))
+                                fish_logger.info(f"You have leveled up to level {level}")
+                            else:
+                                fish_logger.warning("LEVEL UP detected but could not extract level number.")
+                        except Exception as e:
+                            code_logger.error(f"Error parsing level up message: {e}", exc_info=True)
 
     if Lego.user in message.mentions:
         discord_logger.info(f"Message from {message.author}: {message.content}")

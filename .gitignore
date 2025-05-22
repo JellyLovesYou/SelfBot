@@ -32,9 +32,6 @@ cookies.json
 session.txt
 tokens.txt
 
-Cookies
-Local State
-
 .flake8
 
 .DS_Store

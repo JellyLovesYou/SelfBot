@@ -11,7 +11,7 @@ from typing import Any, Optional
 with open(Path("data/config/config.json")) as f:
     config = json.load(f)
 
-activity = config["paths"]["activity"]
+activity = Path("data/runtime/activity.json")
 env = config['paths']['env']
 prefix = config['main']['prefix']
 delay = random.randint(240, 300) / 100
@@ -35,6 +35,13 @@ def setup_logger(name: str, log_file: Path, level: int = logging.INFO) -> loggin
     return logger
 
 
+code_logger = setup_logger('code', Path("data/logs/code.log"))
+discord_logger = setup_logger('discord', Path("data/logs/discord.log"))
+pokemon_logger = setup_logger('pokemon', Path("data/logs/pokemon.log"))
+tree_logger = setup_logger("tree", Path("data/logs/tree.log"))
+fish_logger = setup_logger("fish", Path("data/logs/fish.log"))
+
+
 log_paths = {
     'code': "data/logs/code.log",
     'discord': "data/logs/discord.log",
@@ -42,12 +49,6 @@ log_paths = {
     'tree': "data/logs/tree.log",
     'fish': "data/logs/fish.log"
 }
-
-code_logger = setup_logger('code', Path(log_paths['code']))
-discord_logger = setup_logger('discord', Path(log_paths['discord']))
-pokemon_logger = setup_logger('pokemon', Path(log_paths['pokemon']))
-tree_logger = setup_logger("tree", Path(log_paths['tree']))
-fish_logger = setup_logger("fish", Path(log_paths['fish']))
 
 
 def clean_logs():
