@@ -42,7 +42,6 @@ with open(session_path, 'r') as f:
 tree_check = bool(config['main']['tree?'])
 if tree_check:
     tree_channel_id = int(config['ids']['tree channel'])
-    tree_message_id = int(config['ids']['tree'])
     tree_id = int(config['ids']['tree id'])
     url = str(f"https://discord.com/channels/{guild_id}/{tree_channel_id}")
     tree_headers: dict[str, str] = {

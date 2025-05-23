@@ -10,7 +10,8 @@
         "helpers?": true,
         "solving?": true,
         "sniping?": true,
-        "fishing?": true
+        "fishing?": true,
+        "fishing paid?": false
     },
     "text": {
         "pokemon": true,
@@ -25,7 +26,6 @@
         "mention id": "716390085896962058",
         "tree id": "972637072991068220",
         "tree": "", // message id for Grow a Tree#5130
-        "tree channel": "", // channel id for Grow a Tree#5130
         "fish id": "574652751745777665",
         "fish channel": "", // channel id for Virtual Fisher#7036
         "guild": "" // guild id

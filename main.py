@@ -77,7 +77,6 @@ if catching_check:
 
 tree_check = bool(config['main']['tree?'])
 if tree_check:
-    tree_message_id = int(config['ids']['tree'])
     tree_channel_id = int(config['ids']['tree channel'])
 
 helpers = "helpers.py"
