@@ -309,7 +309,11 @@ class Messages(commands.Cog):
         await message.edit(content=f"Pong! Response time: `{latency:.2f}ms`", delete_after=3)
         await ctx.message.delete()
 
-    @commands.command(name="logs")
+    @commands.command(
+        name="log",
+        help='Shows your logs',
+        usage='?log pokemon'
+    )
     async def logs(self, ctx: commands.Context[Any], log_type: str):
         if ctx.author != self.bot.user:
             discord_logger.info(f"Unauthorized user {ctx.author.id} tried to use ping.")

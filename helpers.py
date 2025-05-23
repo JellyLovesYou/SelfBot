@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, TypedDict, List
 from asyncio import Task
 
-from discord import TextChannel
+from discord import TextChannel, HTTPException, DiscordServerError
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -44,6 +44,8 @@ class Helpers:
         channel_id = config.get("channel id")
         text = config.get("text")
         length = config.get("length", 10)
+        retries = config.get("retries", 3)
+
         characters = string.ascii_letters + string.digits
 
         if channel_id is None:
@@ -58,7 +60,16 @@ class Helpers:
 
             while True:
                 content = text or ''.join(random.choices(characters, k=length))
-                await channel.send(content)
+                for attempt in range(retries):
+                    try:
+                        await channel.send(content)
+                        break
+                    except (HTTPException, DiscordServerError) as e:
+                        code_logger.warning(f"Send attempt {attempt+1}/{retries} failed: {e}")
+                        if attempt < retries - 1:
+                            await asyncio.sleep(delay * (2 ** attempt))
+                        else:
+                            raise
                 await asyncio.sleep(delay)
 
         except asyncio.CancelledError:
